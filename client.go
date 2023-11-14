@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -2939,7 +2940,7 @@ requestLoop:
 			nn, err := ic.writer.Write(req)
 			err = ic.writer.Flush()
 			if err != nil {
-				log.Error("write req error", zap.Int("nbytes", nn), zap.Binary("reqMsg", req), zap.Error(err))
+				log.Error("flush req error", zap.Int("nbytes", nn), zap.Binary("reqMsg", req), zap.Error(err))
 				ic.writer.Reset(ic.conn)
 				ic.errChan <- err
 			}
@@ -3006,7 +3007,15 @@ func (ic *IbClient) goDecode() {
 	log.Debug("decoder start")
 	defer func() {
 		if errMsg := recover(); errMsg != nil {
-			err := errors.New(errMsg.(string))
+			var err error
+			switch e := errMsg.(type) {
+			case string:
+				err = errors.New(errMsg.(string))
+			case runtime.Error:
+				err = errors.New(e.Error())
+			case error:
+				err = errors.New(e.Error())
+			}
 			log.Error("decoder got unexpected error", zap.Error(err))
 			ic.err = err
 			// ic.Disconnect()
